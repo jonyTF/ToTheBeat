@@ -23,7 +23,7 @@
 #pragma comment(lib, "wxbase31u.lib")
 #endif
 
-const wxString wxGetMediaStateText(int nState)
+/*const wxString wxGetMediaStateText(int nState)
 {
 	switch (nState)
 	{
@@ -35,7 +35,7 @@ const wxString wxGetMediaStateText(int nState)
 		default:
 			return "Paused";
 	}
-}
+}*/
 
 bool ToTheBeatApp::OnInit()
 {
@@ -49,16 +49,6 @@ bool ToTheBeatApp::OnInit()
 	mainFrame->Show(true);
 	return true;
 }
-
-#ifdef __WXMAC__
-
-void ToTheBeatApp::MacOpenFiles(const wxArrayString & fileNames)
-{
-	// Called when a user drags files over our app
-	m_frame->DoOpenFile(fileNames[0], true /* new page */);
-}
-
-#endif // __WXMAC__
 
 TopPanel::TopPanel(wxWindow *parent) : wxPanel(parent, wxID_ANY, wxPoint(-1, -1), wxSize(-1, -1), wxBORDER_SUNKEN)
 {
@@ -76,6 +66,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat")
 {
 	wxMenu *menuFile = new wxMenu;
 	menuFile->Append(ID_Hello, "&Hello....little friend\tCtrl-H");
+	menuFile->Append(ID_OPEN, "&Open\tCtrl-O", "Open a video file or ttb project");
 	menuFile->AppendSeparator();
 	menuFile->Append(wxID_EXIT);
 
@@ -92,6 +83,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat")
 	SetStatusText("Welcome to the BEAT!");
 
 	Bind(wxEVT_MENU, &MainFrame::OnHello, this, ID_Hello);
+	Bind(wxEVT_MENU, &MainFrame::OnOpen, this, ID_OPEN);
 	Bind(wxEVT_MENU, &MainFrame::OnAbout, this, wxID_ABOUT);
 	Bind(wxEVT_MENU, &MainFrame::OnExit,  this, wxID_EXIT);
 
@@ -118,6 +110,14 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat")
 
 	splitter->SplitHorizontally(top, bottom);
 	splitter->SetMinimumPaneSize(100);
+
+	m_mediactrl = new wxMediaCtrl();
+
+	bool bOK = m_mediactrl->Create(this, ID_MEDIACTRL);
+	wxASSERT_MSG(bOK, "Could not create wxMediaCtrl!");
+	wxUnusedVar(bOK);
+
+
 }
 
 void MainFrame::OnExit(wxCommandEvent& event)
@@ -134,6 +134,15 @@ void MainFrame::OnAbout(wxCommandEvent& event)
 void MainFrame::OnHello(wxCommandEvent& event)
 {
 	wxLogMessage("Hello CRUEL world...");
+}
+
+void MainFrame::OnOpen(wxCommandEvent& event)
+{
+	wxFileDialog fd(this);
+	if (fd.ShowModal() == wxID_OK)
+	{
+		wxLogMessage("lol" + fd.GetPath());
+	}
 }
 
 wxIMPLEMENT_APP(ToTheBeatApp);

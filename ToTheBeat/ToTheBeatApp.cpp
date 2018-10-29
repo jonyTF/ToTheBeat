@@ -50,20 +50,10 @@ bool ToTheBeatApp::OnInit()
 	return true;
 }
 
-TopPanel::TopPanel(wxWindow *parent) : wxPanel(parent, wxID_ANY, wxPoint(-1, -1), wxSize(-1, -1), wxBORDER_SUNKEN)
+MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat", wxDefaultPosition, wxSize(800, 600))
 {
-	//SetBackgroundColour("gray");
-	wxButton* b = new wxButton(this, wxID_ANY, "Le Top Button");
-}
+	videoLoaded = false;
 
-BottomPanel::BottomPanel(wxWindow *parent) : wxPanel(parent, wxID_ANY, wxPoint(-1, -1), wxSize(-1, -1), wxBORDER_SUNKEN)
-{
-	//SetBackgroundColour("gray");
-	wxButton* b = new wxButton(this, wxID_ANY, "Le Bottom Button");
-}
-
-MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat")
-{
 	wxMenu *menuFile = new wxMenu;
 	menuFile->Append(ID_Hello, "&Hello....little friend\tCtrl-H");
 	menuFile->Append(ID_OPEN, "&Open\tCtrl-O", "Open a video file or ttb project");
@@ -103,21 +93,33 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat")
 	this->Center();
 	*/
 	
+	// -----Layout-----
 	wxSplitterWindow *splitter = new wxSplitterWindow(this);
+	m_panel_top = new wxPanel(splitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN);
+	
+	m_panel_bot = new wxPanel(splitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN);
 
-	TopPanel *top = new TopPanel(splitter);
-	BottomPanel *bottom = new BottomPanel(splitter);
+	splitter->SplitHorizontally(m_panel_top, m_panel_bot);
+	splitter->SetMinimumPaneSize(300);
 
-	splitter->SplitHorizontally(top, bottom);
-	splitter->SetMinimumPaneSize(100);
+	wxBoxSizer *vbox = new wxBoxSizer(wxVERTICAL);
+	m_panel_top->SetSizer(vbox);
 
-	m_mediactrl = new wxMediaCtrl();
+	m_mediactrl = new wxMediaCtrl(m_panel_top, ID_MEDIACTRL, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0L, wxMEDIABACKEND_WMP10);
+	m_mediactrl->ShowPlayerControls();
 
-	bool bOK = m_mediactrl->Create(this, ID_MEDIACTRL);
-	wxASSERT_MSG(bOK, "Could not create wxMediaCtrl!");
-	wxUnusedVar(bOK);
+	vbox->Add(m_mediactrl, 0, wxEXPAND | wxALL, 20);
+
+	// Workaround for wxEVT_MEDIA_LOADED not firing
+	Bind(wxEVT_MEDIA_STOP, &MainFrame::OnLoadVideo, this, ID_MEDIACTRL);
 
 
+	// -----Mouse Stuff-----
+	m_panel_bot->Bind(wxEVT_ENTER_WINDOW, &MainFrame::OnMouseEnter, this);
+	m_panel_bot->Bind(wxEVT_LEAVE_WINDOW, &MainFrame::OnMouseLeave, this);
+	m_panel_bot->Bind(wxEVT_MOTION, &MainFrame::OnMouseMotion, this);
+
+	Centre();
 }
 
 void MainFrame::OnExit(wxCommandEvent& event)
@@ -134,6 +136,7 @@ void MainFrame::OnAbout(wxCommandEvent& event)
 void MainFrame::OnHello(wxCommandEvent& event)
 {
 	wxLogMessage("Hello CRUEL world...");
+	wxLogDebug("watt");
 }
 
 void MainFrame::OnOpen(wxCommandEvent& event)
@@ -141,7 +144,52 @@ void MainFrame::OnOpen(wxCommandEvent& event)
 	wxFileDialog fd(this);
 	if (fd.ShowModal() == wxID_OK)
 	{
-		wxLogMessage("lol" + fd.GetPath());
+		if (!m_mediactrl->Load(fd.GetPath()))
+		{
+			wxLogMessage("Failed to load " + fd.GetPath());
+		}
+	}
+}
+
+void MainFrame::OnLoadVideo(wxMediaEvent& event)
+{
+	//wxLogMessage("LOADED VIDEO!");
+	//m_mediactrl->Play();
+	videoLoaded = true;
+}
+
+void MainFrame::OnMouseEnter(wxMouseEvent& event)
+{
+	mouseInWindow = true;
+	wxLogDebug("Enterr!!");
+}
+
+void MainFrame::OnMouseLeave(wxMouseEvent& event)
+{
+	mouseInWindow = false;
+	wxLogDebug("EXIT!!!");
+}
+
+void MainFrame::OnMouseMotion(wxMouseEvent& event)
+{
+	int x = event.GetX();
+	//int y = event.GetY();
+
+	int panel_width, panel_height;
+	m_panel_bot->GetSize(&panel_width, &panel_height);
+
+	float percent = (float)x / panel_width;
+	int length = m_mediactrl->Length();
+
+	wxLogDebug("Percent: %f", percent);
+
+	if (videoLoaded)
+	{
+		m_mediactrl->Seek(percent * length);
+		// TODO: speed this up.
+		// It is slow currently because it plays and pauses for EVERY SINGLE value that the mouse moved to
+		m_mediactrl->Play();
+		m_mediactrl->Pause();
 	}
 }
 

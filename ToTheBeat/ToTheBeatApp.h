@@ -19,23 +19,21 @@ public:
 	MainFrame();
 
 protected:
-	wxMediaCtrl* m_mediactrl;
+	wxMediaCtrl *m_mediactrl;
+	wxPanel *m_panel_top;
+	wxPanel *m_panel_bot;
 
 private:
 	void OnHello(wxCommandEvent& event);
 	void OnOpen(wxCommandEvent& event);
 	void OnExit(wxCommandEvent& event);
 	void OnAbout(wxCommandEvent& event);
-};
 
-class TopPanel : public wxPanel
-{
-public:
-	TopPanel(wxWindow *parent);
-};
+	void OnLoadVideo(wxMediaEvent& event);
+	bool videoLoaded;
 
-class BottomPanel : public wxPanel
-{
-public:
-	BottomPanel(wxWindow *parent);
+	void OnMouseEnter(wxMouseEvent& event);
+	void OnMouseLeave(wxMouseEvent& event);
+	void OnMouseMotion(wxMouseEvent& event);
+	bool mouseInWindow;
 };

@@ -7,33 +7,56 @@ enum
 	ID_MEDIACTRL
 };
 
+class MainPanel;
+class Timeline;
+class MainFrame;
+
 class ToTheBeatApp : public wxApp
 {
 public:
 	virtual bool OnInit() wxOVERRIDE;
 };
 
+class MainPanel : public wxPanel
+{
+public:
+	MainPanel(wxWindow* parent);
+};
+
+class Timeline : public MainPanel
+{
+public:
+	Timeline(wxWindow* parent, MainFrame* frame);
+
+	bool mMouseInWindow;
+	int mCurVideoPos;
+	std::vector<int> mPositions;
+
+private:
+	void onPaint(wxPaintEvent& event);
+	void onMouseEnter(wxMouseEvent& event);
+	void onMouseLeave(wxMouseEvent& event);
+	void onMouseMotion(wxMouseEvent& event);
+	void onMouseLeftClick(wxMouseEvent& event);
+
+	MainFrame *mParentFrame;
+};
+
 class MainFrame : public wxFrame
 {
 public:
 	MainFrame();
+	wxMediaCtrl *mMediaCtrl;
+	MainPanel *mPanelTop;
+	Timeline *mPanelBot;
 
-protected:
-	wxMediaCtrl *m_mediactrl;
-	wxPanel *m_panel_top;
-	wxPanel *m_panel_bot;
+	bool mVideoLoaded;
 
 private:
-	void OnHello(wxCommandEvent& event);
-	void OnOpen(wxCommandEvent& event);
-	void OnExit(wxCommandEvent& event);
-	void OnAbout(wxCommandEvent& event);
+	void onHello(wxCommandEvent& event);
+	void onOpen(wxCommandEvent& event);
+	void onExit(wxCommandEvent& event);
+	void onAbout(wxCommandEvent& event);
 
-	void OnLoadVideo(wxMediaEvent& event);
-	bool videoLoaded;
-
-	void OnMouseEnter(wxMouseEvent& event);
-	void OnMouseLeave(wxMouseEvent& event);
-	void OnMouseMotion(wxMouseEvent& event);
-	bool mouseInWindow;
+	void onLoadVideo(wxMediaEvent& event);
 };

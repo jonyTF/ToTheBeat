@@ -3,14 +3,8 @@
 
 #include <wx/mediactrl.h>   // for wxMediaCtrl
 #include <wx/filedlg.h>		// for opening files from OpenFile
-#include <wx/slider.h>		// for a slider for seeking within media
 #include <wx/sizer.h>		// for positioning controls/wxBoxSizer
 #include <wx/timer.h>		// timer for updating status bar
-#include <wx/textdlg.h>		// for getting user text from OpenURL/Debug
-#include <wx/notebook.h>	// for wxNotebook and putting movies in pages
-#include <wx/cmdline.h>		// for wxCmdLineParser (optional)
-#include <wx/listctrl.h>	// for wxListCtrl
-#include <wx/dnd.h>			// drag and drop for the playlist
 #include <wx/filename.h>	// For wxFileName::GetName()
 #include <wx/config.h>		// for native wxConfig
 #include <wx/vector.h>
@@ -52,7 +46,7 @@ bool ToTheBeatApp::OnInit()
 
 MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat", wxDefaultPosition, wxSize(800, 600))
 {
-	videoLoaded = false;
+	mVideoLoaded = false;
 
 	wxMenu *menuFile = new wxMenu;
 	menuFile->Append(ID_Hello, "&Hello....little friend\tCtrl-H");
@@ -72,10 +66,10 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat", wxDefaultPosi
 	CreateStatusBar();
 	SetStatusText("Welcome to the BEAT!");
 
-	Bind(wxEVT_MENU, &MainFrame::OnHello, this, ID_Hello);
-	Bind(wxEVT_MENU, &MainFrame::OnOpen, this, ID_OPEN);
-	Bind(wxEVT_MENU, &MainFrame::OnAbout, this, wxID_ABOUT);
-	Bind(wxEVT_MENU, &MainFrame::OnExit,  this, wxID_EXIT);
+	Bind(wxEVT_MENU, &MainFrame::onHello, this, ID_Hello);
+	Bind(wxEVT_MENU, &MainFrame::onOpen, this, ID_OPEN);
+	Bind(wxEVT_MENU, &MainFrame::onAbout, this, wxID_ABOUT);
+	Bind(wxEVT_MENU, &MainFrame::onExit,  this, wxID_EXIT);
 
 	/*
 	wxPanel *parent = new wxPanel(this);
@@ -95,102 +89,141 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat", wxDefaultPosi
 	
 	// -----Layout-----
 	wxSplitterWindow *splitter = new wxSplitterWindow(this);
-	m_panel_top = new wxPanel(splitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN);
+	mPanelTop = new MainPanel(splitter);
 	
-	m_panel_bot = new wxPanel(splitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN);
+	mPanelBot = new Timeline(splitter, this);
 
-	splitter->SplitHorizontally(m_panel_top, m_panel_bot);
+	splitter->SplitHorizontally(mPanelTop, mPanelBot);
 	splitter->SetMinimumPaneSize(300);
 
 	wxBoxSizer *vbox = new wxBoxSizer(wxVERTICAL);
-	m_panel_top->SetSizer(vbox);
+	mPanelTop->SetSizer(vbox);
 
-	m_mediactrl = new wxMediaCtrl(m_panel_top, ID_MEDIACTRL, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0L, wxMEDIABACKEND_WMP10);
-	m_mediactrl->ShowPlayerControls();
+	mMediaCtrl = new wxMediaCtrl(mPanelTop, ID_MEDIACTRL, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0L, wxMEDIABACKEND_WMP10);
+	mMediaCtrl->ShowPlayerControls();
 
-	vbox->Add(m_mediactrl, 0, wxEXPAND | wxALL, 20);
+	vbox->Add(mMediaCtrl, 0, wxEXPAND | wxALL, 20);
 
 	// Workaround for wxEVT_MEDIA_LOADED not firing
-	Bind(wxEVT_MEDIA_STOP, &MainFrame::OnLoadVideo, this, ID_MEDIACTRL);
-
-
-	// -----Mouse Stuff-----
-	m_panel_bot->Bind(wxEVT_ENTER_WINDOW, &MainFrame::OnMouseEnter, this);
-	m_panel_bot->Bind(wxEVT_LEAVE_WINDOW, &MainFrame::OnMouseLeave, this);
-	m_panel_bot->Bind(wxEVT_MOTION, &MainFrame::OnMouseMotion, this);
+	Bind(wxEVT_MEDIA_STOP, &MainFrame::onLoadVideo, this, ID_MEDIACTRL);
 
 	Centre();
 }
 
-void MainFrame::OnExit(wxCommandEvent& event)
+void MainFrame::onExit(wxCommandEvent& event)
 {
 	Close(true);
 }
 
-void MainFrame::OnAbout(wxCommandEvent& event)
+void MainFrame::onAbout(wxCommandEvent& event)
 {
 	wxMessageBox("This is an app that syncs videos with the selected music.",
 				"About ToTheBeat", wxOK | wxICON_INFORMATION);
 }
 
-void MainFrame::OnHello(wxCommandEvent& event)
+void MainFrame::onHello(wxCommandEvent& event)
 {
 	wxLogMessage("Hello CRUEL world...");
 	wxLogDebug("watt");
 }
 
-void MainFrame::OnOpen(wxCommandEvent& event)
+void MainFrame::onOpen(wxCommandEvent& event)
 {
 	wxFileDialog fd(this);
 	if (fd.ShowModal() == wxID_OK)
 	{
-		if (!m_mediactrl->Load(fd.GetPath()))
+		if (!mMediaCtrl->Load(fd.GetPath()))
 		{
 			wxLogMessage("Failed to load " + fd.GetPath());
 		}
 	}
 }
 
-void MainFrame::OnLoadVideo(wxMediaEvent& event)
+void MainFrame::onLoadVideo(wxMediaEvent& event)
 {
 	//wxLogMessage("LOADED VIDEO!");
 	//m_mediactrl->Play();
-	videoLoaded = true;
+	mVideoLoaded = true;
 }
 
-void MainFrame::OnMouseEnter(wxMouseEvent& event)
+MainPanel::MainPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN)
 {
-	mouseInWindow = true;
+}
+
+Timeline::Timeline(wxWindow* parent, MainFrame* frame) : MainPanel(parent)
+{
+	mParentFrame = frame;
+	mMouseInWindow = false;
+	mCurVideoPos = 0;
+
+	Bind(wxEVT_ENTER_WINDOW, &Timeline::onMouseEnter, this);
+	Bind(wxEVT_LEAVE_WINDOW, &Timeline::onMouseLeave, this);
+	Bind(wxEVT_MOTION, &Timeline::onMouseMotion, this);
+	Bind(wxEVT_LEFT_DCLICK, &Timeline::onMouseLeftClick, this);
+	Bind(wxEVT_PAINT, &Timeline::onPaint, this);
+}
+
+void Timeline::onMouseEnter(wxMouseEvent& event)
+{
+	mMouseInWindow = true;
 	wxLogDebug("Enterr!!");
 }
 
-void MainFrame::OnMouseLeave(wxMouseEvent& event)
+void Timeline::onMouseLeave(wxMouseEvent& event)
 {
-	mouseInWindow = false;
+	mMouseInWindow = false;
 	wxLogDebug("EXIT!!!");
 }
 
-void MainFrame::OnMouseMotion(wxMouseEvent& event)
+void Timeline::onMouseMotion(wxMouseEvent& event)
 {
 	int x = event.GetX();
 	//int y = event.GetY();
 
 	int panel_width, panel_height;
-	m_panel_bot->GetSize(&panel_width, &panel_height);
+	mParentFrame->mPanelBot->GetSize(&panel_width, &panel_height);
 
 	float percent = (float)x / panel_width;
-	int length = m_mediactrl->Length();
+	int length = mParentFrame->mMediaCtrl->Length();
+	mCurVideoPos = percent * length;
 
 	wxLogDebug("Percent: %f", percent);
 
-	if (videoLoaded)
+	if (mParentFrame->mVideoLoaded)
 	{
-		m_mediactrl->Seek(percent * length);
+		mParentFrame->mMediaCtrl->Seek(mCurVideoPos);
 		// TODO: speed this up.
 		// It is slow currently because it plays and pauses for EVERY SINGLE value that the mouse moved to
-		m_mediactrl->Play();
-		m_mediactrl->Pause();
+		mParentFrame->mMediaCtrl->Play();
+		mParentFrame->mMediaCtrl->Pause();
 	}
 }
 
+void Timeline::onMouseLeftClick(wxMouseEvent& event)
+{
+	mPositions.push_back(mCurVideoPos);
+}
+
+void Timeline::onPaint(wxPaintEvent& event)
+{
+	wxPaintDC dc(this);
+	dc.SetBrush(*wxGREEN_BRUSH);
+	dc.SetPen( wxPen( wxColor(255, 0, 255), 10 ) );
+	dc.DrawCircle( wxPoint(50, 50), 25 );
+}
+
 wxIMPLEMENT_APP(ToTheBeatApp);
+
+//ffmpeg stuff
+/*
+
+./ffmpeg
+-i "INPUT_VIDEO" -filter_complex 
+"[0:v]trim=start=0:end=5,setpts=(1/5)*PTS[a];
+[0:v]trim=start=5:end=13,setpts=(1/8)*(PTS-STARTPTS)[b];
+[0:v]trim=start=13:end=16,setpts=(1/3)*(PTS-STARTPTS)[c];
+[0:v]trim=start=16:end=20,setpts=(1/4)*(PTS-STARTPTS)[d];
+[a][b][c][d]concat=n=4[out1]" 
+-map [out1] output.mp4
+
+*/

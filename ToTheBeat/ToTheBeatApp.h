@@ -26,7 +26,7 @@ public:
 	int m_mouseX;
 	std::vector<int> m_positions;
 
-	void updateSize();
+	void updateSize(bool newVideo = true);
 
 private:
 	MainFrame *m_parentFrame;
@@ -46,6 +46,7 @@ private:
 	void onMouseLeave(wxMouseEvent& event);
 	void onMouseMotion(wxMouseEvent& event);
 	void onMouseLeftClick(wxMouseEvent& event);
+	void onMouseWheel(wxMouseEvent& event);
 	void onResize(wxSizeEvent& event);
 	void onTimer(wxTimerEvent& event);
 };

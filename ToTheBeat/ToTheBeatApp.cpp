@@ -150,6 +150,7 @@ Timeline::Timeline(wxWindow* parent, MainFrame* frame) : wxWindow(parent, wxID_A
 	Bind(wxEVT_LEAVE_WINDOW, &Timeline::onMouseLeave, this);
 	Bind(wxEVT_MOTION, &Timeline::onMouseMotion, this);
 	Bind(wxEVT_LEFT_UP, &Timeline::onMouseLeftClick, this);
+	Bind(wxEVT_MOUSEWHEEL, &Timeline::onMouseWheel, this);
 	
 	Bind(wxEVT_PAINT, &Timeline::onPaint, this);
 
@@ -213,6 +214,23 @@ void Timeline::onMouseLeftClick(wxMouseEvent& event)
 		m_positions.push_back(m_curVideoPos);
 		Refresh();
 	}
+}
+
+void Timeline::onMouseWheel(wxMouseEvent& event)
+{
+	//wxLogDebug("wheel rotation: %d", event.GetWheelRotation());
+	int rot = event.GetWheelRotation();
+	if (rot > 0)
+	{
+		m_zoom += 0.1f;
+	}
+	else
+	{
+		if (m_zoom - 0.1f > 0)
+			m_zoom -= 0.1f;
+	}
+
+	updateSize(false);
 }
 
 void Timeline::onPaint(wxPaintEvent& event)
@@ -297,11 +315,13 @@ void Timeline::onResize(wxSizeEvent& event)
 	wxLogDebug("mWidth: %d, mHeight: %d", m_width, m_height);
 }
 
-void Timeline::updateSize()
+void Timeline::updateSize(bool newVideo)
 {
-	// Update size when new video is loaded
-	m_positions.clear();
-	m_videoLength = m_parentFrame->m_mediaCtrl->Length();
+	if (newVideo)
+	{
+		m_positions.clear();
+		m_videoLength = m_parentFrame->m_mediaCtrl->Length();
+	}
 	m_width = m_zoom * (m_videoLength / 10);
 	SetMinSize(wxSize(m_width, -1));
 	SetSize(wxSize(m_width, -1));

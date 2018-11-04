@@ -46,8 +46,9 @@ bool ToTheBeatApp::OnInit()
 
 MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat", wxDefaultPosition, wxSize(800, 600))
 {
-	mVideoLoaded = false;
+	m_videoLoaded = false;
 
+	// -----Menu Bar-----
 	wxMenu *menuFile = new wxMenu;
 	menuFile->Append(ID_Hello, "&Hello....little friend\tCtrl-H");
 	menuFile->Append(ID_OPEN, "&Open\tCtrl-O", "Open a video file or ttb project");
@@ -70,39 +71,33 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, "To The Beat", wxDefaultPosi
 	Bind(wxEVT_MENU, &MainFrame::onOpen, this, ID_OPEN);
 	Bind(wxEVT_MENU, &MainFrame::onAbout, this, wxID_ABOUT);
 	Bind(wxEVT_MENU, &MainFrame::onExit,  this, wxID_EXIT);
-
-	/*
-	wxPanel *parent = new wxPanel(this);
-
-	wxBoxSizer *vbox = new wxBoxSizer(wxVERTICAL);
-
-	TopPanel *top = new TopPanel(parent);
-	BottomPanel *bottom = new BottomPanel(parent);
-
-	vbox->Add(top, 1, wxEXPAND | wxALL, 5);
-	vbox->Add(bottom, 1, wxEXPAND | wxALL, 5);
-
-	parent->SetSizer(vbox);
-
-	this->Center();
-	*/
 	
 	// -----Layout-----
 	wxSplitterWindow *splitter = new wxSplitterWindow(this);
-	mPanelTop = new MainPanel(splitter);
-	
-	mPanelBot = new Timeline(splitter, this);
+	m_panelTop = new wxPanel(splitter, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN);
+	m_panelBot = new wxScrolled<wxPanel>(splitter, wxID_ANY);
 
-	splitter->SplitHorizontally(mPanelTop, mPanelBot);
+	splitter->SplitHorizontally(m_panelTop, m_panelBot);
 	splitter->SetMinimumPaneSize(300);
 
+	// mPanelTop
 	wxBoxSizer *vbox = new wxBoxSizer(wxVERTICAL);
-	mPanelTop->SetSizer(vbox);
 
-	mMediaCtrl = new wxMediaCtrl(mPanelTop, ID_MEDIACTRL, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0L, wxMEDIABACKEND_WMP10);
-	mMediaCtrl->ShowPlayerControls();
+	m_mediaCtrl = new wxMediaCtrl(m_panelTop, ID_MEDIACTRL, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0L, wxMEDIABACKEND_WMP10);
+	m_mediaCtrl->ShowPlayerControls();
 
-	vbox->Add(mMediaCtrl, 0, wxEXPAND | wxALL, 20);
+	vbox->Add(m_mediaCtrl, 0, wxEXPAND | wxALL, 20);
+	m_panelTop->SetSizer(vbox);
+
+	// mPanelBot
+	wxBoxSizer *vbox2 = new wxBoxSizer(wxVERTICAL);
+
+	m_timeline = new Timeline(m_panelBot, this);
+
+	vbox2->Add(m_timeline, 1, wxALL, 0);
+	m_panelBot->SetSizer(vbox2);
+	m_panelBot->FitInside();
+	m_panelBot->SetScrollRate(5, 5);
 
 	// Workaround for wxEVT_MEDIA_LOADED not firing
 	Bind(wxEVT_MEDIA_STOP, &MainFrame::onLoadVideo, this, ID_MEDIACTRL);
@@ -132,7 +127,7 @@ void MainFrame::onOpen(wxCommandEvent& event)
 	wxFileDialog fd(this);
 	if (fd.ShowModal() == wxID_OK)
 	{
-		if (!mMediaCtrl->Load(fd.GetPath()))
+		if (!m_mediaCtrl->Load(fd.GetPath()))
 		{
 			wxLogMessage("Failed to load " + fd.GetPath());
 		}
@@ -143,73 +138,124 @@ void MainFrame::onLoadVideo(wxMediaEvent& event)
 {
 	//wxLogMessage("LOADED VIDEO!");
 	//m_mediactrl->Play();
-	mVideoLoaded = true;
+	m_videoLoaded = true;
+	m_timeline->updateSize();
 }
 
-MainPanel::MainPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxBORDER_SUNKEN)
+Timeline::Timeline(wxWindow* parent, MainFrame* frame) : wxWindow(parent, wxID_ANY)
 {
-}
+	m_parentFrame = frame;
+	m_mouseInWindow = false;
+	m_curVideoPos = 0;
+	m_mouseX = 0;
+	m_lastMouseX = 0;
+	m_width = 1000;
 
-Timeline::Timeline(wxWindow* parent, MainFrame* frame) : MainPanel(parent)
-{
-	mParentFrame = frame;
-	mMouseInWindow = false;
-	mCurVideoPos = 0;
+	SetMinSize(wxSize(m_width, -1));
+	SetBackgroundColour(*wxRED);
+
+	//GetSize(&mWidth, &mHeight);
+	//SetSize(wxDefaultCoord, wxDefaultCoord, mWidth+1000, wxDefaultCoord);
+
+	m_timer.Bind(wxEVT_TIMER, &Timeline::onTimer, this);
 
 	Bind(wxEVT_ENTER_WINDOW, &Timeline::onMouseEnter, this);
 	Bind(wxEVT_LEAVE_WINDOW, &Timeline::onMouseLeave, this);
 	Bind(wxEVT_MOTION, &Timeline::onMouseMotion, this);
 	Bind(wxEVT_LEFT_DCLICK, &Timeline::onMouseLeftClick, this);
+	
 	Bind(wxEVT_PAINT, &Timeline::onPaint, this);
+
+	Bind(wxEVT_SIZE, &Timeline::onResize, this);
 }
 
 void Timeline::onMouseEnter(wxMouseEvent& event)
 {
-	mMouseInWindow = true;
+	m_mouseInWindow = true;
 	wxLogDebug("Enterr!!");
+	m_timer.Start(100);
+
+	Refresh();
 }
 
 void Timeline::onMouseLeave(wxMouseEvent& event)
 {
-	mMouseInWindow = false;
+	m_mouseInWindow = false;
 	wxLogDebug("EXIT!!!");
+	m_timer.Stop();
+
+	Refresh();
 }
 
 void Timeline::onMouseMotion(wxMouseEvent& event)
 {
 	int x = event.GetX();
+	m_mouseX = x;
+
 	//int y = event.GetY();
 
-	int panel_width, panel_height;
-	mParentFrame->mPanelBot->GetSize(&panel_width, &panel_height);
-
-	float percent = (float)x / panel_width;
-	int length = mParentFrame->mMediaCtrl->Length();
-	mCurVideoPos = percent * length;
+	float percent = (float)x / m_width;
+	int length = m_parentFrame->m_mediaCtrl->Length();
+	m_curVideoPos = percent * length;
 
 	wxLogDebug("Percent: %f", percent);
 
-	if (mParentFrame->mVideoLoaded)
+	Refresh();
+}
+
+void Timeline::onTimer(wxTimerEvent& event)
+{
+	wxPoint p = wxGetMousePosition();
+	int x = p.x - GetScreenPosition().x;
+
+	if (m_lastMouseX != x)
 	{
-		mParentFrame->mMediaCtrl->Seek(mCurVideoPos);
-		// TODO: speed this up.
-		// It is slow currently because it plays and pauses for EVERY SINGLE value that the mouse moved to
-		mParentFrame->mMediaCtrl->Play();
-		mParentFrame->mMediaCtrl->Pause();
+		m_lastMouseX = x;
+
+		// Display the current frame of the video with a timer
+		if (m_parentFrame->m_videoLoaded)
+		{
+			m_parentFrame->m_mediaCtrl->Seek(m_curVideoPos);
+			m_parentFrame->m_mediaCtrl->Play();
+			m_parentFrame->m_mediaCtrl->Pause();
+		}
 	}
 }
 
 void Timeline::onMouseLeftClick(wxMouseEvent& event)
 {
-	mPositions.push_back(mCurVideoPos);
+	m_positions.push_back(m_curVideoPos);
+
+	Refresh();
 }
 
 void Timeline::onPaint(wxPaintEvent& event)
 {
 	wxPaintDC dc(this);
 	dc.SetBrush(*wxGREEN_BRUSH);
-	dc.SetPen( wxPen( wxColor(255, 0, 255), 10 ) );
-	dc.DrawCircle( wxPoint(50, 50), 25 );
+	dc.SetPen( wxPen( wxColor(255, 255, 0), 2 ) );
+	//dc.DrawCircle( wxPoint(mMouseX, 50), 25 );
+
+	if (m_mouseInWindow)
+	{
+		dc.DrawLine(m_mouseX, 0, m_mouseX, m_height);
+	}
+}
+
+void Timeline::onResize(wxSizeEvent& event)
+{
+	GetSize(nullptr, &m_height);
+	wxLogDebug("mWidth: %d, mHeight: %d", m_width, m_height);
+}
+
+void Timeline::updateSize()
+{
+	m_width = m_parentFrame->m_mediaCtrl->Length() / 100;
+	SetMinSize(wxSize(m_width, -1));
+	SetSize(wxSize(m_width, -1));
+
+	// Update scrollbars
+	GetParent()->FitInside();
 }
 
 wxIMPLEMENT_APP(ToTheBeatApp);

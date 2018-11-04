@@ -7,7 +7,6 @@ enum
 	ID_MEDIACTRL
 };
 
-class MainPanel;
 class Timeline;
 class MainFrame;
 
@@ -17,40 +16,45 @@ public:
 	virtual bool OnInit() wxOVERRIDE;
 };
 
-class MainPanel : public wxPanel
-{
-public:
-	MainPanel(wxWindow* parent);
-};
-
-class Timeline : public MainPanel
+class Timeline : public wxWindow
 {
 public:
 	Timeline(wxWindow* parent, MainFrame* frame);
 
-	bool mMouseInWindow;
-	int mCurVideoPos;
-	std::vector<int> mPositions;
+	bool m_mouseInWindow;
+	int m_curVideoPos;
+	int m_mouseX;
+	std::vector<int> m_positions;
+
+	void updateSize();
 
 private:
+	MainFrame *m_parentFrame;
+	wxTimer m_timer;
+
+	int m_width;
+	int m_height;
+	int m_lastMouseX;
+
 	void onPaint(wxPaintEvent& event);
 	void onMouseEnter(wxMouseEvent& event);
 	void onMouseLeave(wxMouseEvent& event);
 	void onMouseMotion(wxMouseEvent& event);
 	void onMouseLeftClick(wxMouseEvent& event);
-
-	MainFrame *mParentFrame;
+	void onResize(wxSizeEvent& event);
+	void onTimer(wxTimerEvent& event);
 };
 
 class MainFrame : public wxFrame
 {
 public:
 	MainFrame();
-	wxMediaCtrl *mMediaCtrl;
-	MainPanel *mPanelTop;
-	Timeline *mPanelBot;
+	wxMediaCtrl *m_mediaCtrl;
+	wxPanel *m_panelTop;
+	wxScrolled<wxPanel> *m_panelBot;
+	Timeline *m_timeline;
 
-	bool mVideoLoaded;
+	bool m_videoLoaded;
 
 private:
 	void onHello(wxCommandEvent& event);

@@ -35,7 +35,10 @@ private:
 	int m_width;
 	int m_height;
 	int m_lastMouseX;
+	int m_videoLength;
+	float m_zoom;
 
+	void getTimestamp(char *buf, int ms);
 	void drawMarker(wxDC& dc, int pos);
 
 	void onPaint(wxPaintEvent& event);

@@ -17,20 +17,6 @@
 #pragma comment(lib, "wxbase31u.lib")
 #endif
 
-/*const wxString wxGetMediaStateText(int nState)
-{
-	switch (nState)
-	{
-		case wxMEDIASTATE_PLAYING:
-			return "Playing";
-		case wxMEDIASTATE_STOPPED:
-			return "Stopped";
-		///case wxMEDIASTATE_PAUSED:
-		default:
-			return "Paused";
-	}
-}*/
-
 bool ToTheBeatApp::OnInit()
 {
 	if (!wxApp::OnInit())
@@ -150,6 +136,7 @@ Timeline::Timeline(wxWindow* parent, MainFrame* frame) : wxWindow(parent, wxID_A
 	m_mouseX = 0;
 	m_lastMouseX = 0;
 	m_width = 1000;
+	m_zoom = 1.f;
 
 	SetMinSize(wxSize(m_width, -1));
 	SetBackgroundColour(*wxRED);
@@ -175,7 +162,7 @@ void Timeline::onMouseEnter(wxMouseEvent& event)
 	wxLogDebug("Enterr!!");
 	m_timer.Start(100);
 
-	//Refresh();
+	Refresh();
 }
 
 void Timeline::onMouseLeave(wxMouseEvent& event)
@@ -184,7 +171,7 @@ void Timeline::onMouseLeave(wxMouseEvent& event)
 	wxLogDebug("EXIT!!!");
 	m_timer.Stop();
 
-	//Refresh();
+	Refresh();
 }
 
 void Timeline::onMouseMotion(wxMouseEvent& event)
@@ -193,8 +180,7 @@ void Timeline::onMouseMotion(wxMouseEvent& event)
 	m_mouseX = x;
 
 	float percent = (float)x / m_width;
-	int length = m_parentFrame->m_mediaCtrl->Length(); // Could make this more efficient by making it a member var
-	m_curVideoPos = percent * length;
+	m_curVideoPos = percent * m_videoLength;
 
 	wxLogDebug("Percent: %f", percent);
 
@@ -222,8 +208,11 @@ void Timeline::onTimer(wxTimerEvent& event)
 
 void Timeline::onMouseLeftClick(wxMouseEvent& event)
 {
-	m_positions.push_back(m_curVideoPos);
-	Refresh();
+	if (m_parentFrame->m_videoLoaded)
+	{
+		m_positions.push_back(m_curVideoPos);
+		Refresh();
+	}
 }
 
 void Timeline::onPaint(wxPaintEvent& event)
@@ -243,12 +232,60 @@ void Timeline::onPaint(wxPaintEvent& event)
 	{
 		drawMarker(dc, *it);
 	}
+
+	// Draw the time stamps
+	dc.SetPen(wxPen(wxColor(200, 200, 200), 2));
+	dc.SetBrush(wxBrush(wxColor(200, 200, 200)));
+	dc.DrawRectangle(0, 0, m_width, 20);
+
+	dc.SetPen(wxPen(*wxBLACK, 1));
+	for (int ms = 0; ms < m_videoLength; ms += 100)
+	{
+		int x;
+		if (ms % 1000 == 0)
+		{
+			x = ms / 1000 * m_zoom * 100;
+			dc.DrawLine(x, 0, x, 20);
+
+			// Get timestamp hh:mm:ss
+			char timestamp[9];
+			getTimestamp(timestamp, ms);
+			dc.DrawText(timestamp, x, 0);
+		}
+		else
+		{
+			x = ms / 100 * m_zoom * 10;
+			dc.DrawLine(x, 10, x, 20);
+		}
+	}
+}
+
+void Timeline::getTimestamp(char *buf, int ms)
+{
+	int s, m, h;
+	s = ms / 1000;
+	m = s / 60;
+	h = m / 60;
+	s %= 60;
+	m %= 60;
+
+	std::string fmt;
+	if (h / 10 == 0)
+		fmt.push_back('0');
+	fmt.append("%d:");
+	if (m / 10 == 0)
+		fmt.push_back('0');
+	fmt.append("%d:");
+	if (s / 10 == 0)
+		fmt.push_back('0');
+	fmt.append("%d");
+
+	sprintf(buf, fmt.c_str(), h, m, s);
 }
 
 void Timeline::drawMarker(wxDC& dc, int pos)
 {
-	int length = m_parentFrame->m_mediaCtrl->Length(); // Could make this more efficient by making it a member var
-	int x = (float)pos/length*m_width;
+	int x = (float)pos/m_videoLength*m_width;
 
 	dc.SetPen(wxPen(wxColor(255, 255, 255), 2));
 	dc.DrawLine(x, 0, x, m_height);
@@ -264,12 +301,15 @@ void Timeline::updateSize()
 {
 	// Update size when new video is loaded
 	m_positions.clear();
-	m_width = m_parentFrame->m_mediaCtrl->Length() / 100;
+	m_videoLength = m_parentFrame->m_mediaCtrl->Length();
+	m_width = m_zoom * (m_videoLength / 10);
 	SetMinSize(wxSize(m_width, -1));
 	SetSize(wxSize(m_width, -1));
 
 	// Update scrollbars
 	GetParent()->FitInside();
+
+	Refresh();
 }
 
 wxIMPLEMENT_APP(ToTheBeatApp);

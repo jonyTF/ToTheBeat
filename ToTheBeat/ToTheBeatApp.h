@@ -36,6 +36,8 @@ private:
 	int m_height;
 	int m_lastMouseX;
 
+	void drawMarker(wxDC& dc, int pos);
+
 	void onPaint(wxPaintEvent& event);
 	void onMouseEnter(wxMouseEvent& event);
 	void onMouseLeave(wxMouseEvent& event);

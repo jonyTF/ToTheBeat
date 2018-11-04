@@ -162,7 +162,7 @@ Timeline::Timeline(wxWindow* parent, MainFrame* frame) : wxWindow(parent, wxID_A
 	Bind(wxEVT_ENTER_WINDOW, &Timeline::onMouseEnter, this);
 	Bind(wxEVT_LEAVE_WINDOW, &Timeline::onMouseLeave, this);
 	Bind(wxEVT_MOTION, &Timeline::onMouseMotion, this);
-	Bind(wxEVT_LEFT_DCLICK, &Timeline::onMouseLeftClick, this);
+	Bind(wxEVT_LEFT_UP, &Timeline::onMouseLeftClick, this);
 	
 	Bind(wxEVT_PAINT, &Timeline::onPaint, this);
 
@@ -175,7 +175,7 @@ void Timeline::onMouseEnter(wxMouseEvent& event)
 	wxLogDebug("Enterr!!");
 	m_timer.Start(100);
 
-	Refresh();
+	//Refresh();
 }
 
 void Timeline::onMouseLeave(wxMouseEvent& event)
@@ -184,7 +184,7 @@ void Timeline::onMouseLeave(wxMouseEvent& event)
 	wxLogDebug("EXIT!!!");
 	m_timer.Stop();
 
-	Refresh();
+	//Refresh();
 }
 
 void Timeline::onMouseMotion(wxMouseEvent& event)
@@ -192,10 +192,8 @@ void Timeline::onMouseMotion(wxMouseEvent& event)
 	int x = event.GetX();
 	m_mouseX = x;
 
-	//int y = event.GetY();
-
 	float percent = (float)x / m_width;
-	int length = m_parentFrame->m_mediaCtrl->Length();
+	int length = m_parentFrame->m_mediaCtrl->Length(); // Could make this more efficient by making it a member var
 	m_curVideoPos = percent * length;
 
 	wxLogDebug("Percent: %f", percent);
@@ -225,21 +223,35 @@ void Timeline::onTimer(wxTimerEvent& event)
 void Timeline::onMouseLeftClick(wxMouseEvent& event)
 {
 	m_positions.push_back(m_curVideoPos);
-
 	Refresh();
 }
 
 void Timeline::onPaint(wxPaintEvent& event)
 {
 	wxPaintDC dc(this);
-	dc.SetBrush(*wxGREEN_BRUSH);
-	dc.SetPen( wxPen( wxColor(255, 255, 0), 2 ) );
-	//dc.DrawCircle( wxPoint(mMouseX, 50), 25 );
+	//dc.SetBrush(*wxGREEN_BRUSH);
 
 	if (m_mouseInWindow)
 	{
+		// Draw the current time cursor
+		dc.SetPen(wxPen(wxColor(255, 255, 0), 2));
 		dc.DrawLine(m_mouseX, 0, m_mouseX, m_height);
 	}
+
+	// Draw the markers that have been placed
+	for (std::vector<int>::iterator it = m_positions.begin(); it != m_positions.end(); ++it)
+	{
+		drawMarker(dc, *it);
+	}
+}
+
+void Timeline::drawMarker(wxDC& dc, int pos)
+{
+	int length = m_parentFrame->m_mediaCtrl->Length(); // Could make this more efficient by making it a member var
+	int x = (float)pos/length*m_width;
+
+	dc.SetPen(wxPen(wxColor(255, 255, 255), 2));
+	dc.DrawLine(x, 0, x, m_height);
 }
 
 void Timeline::onResize(wxSizeEvent& event)
@@ -250,6 +262,8 @@ void Timeline::onResize(wxSizeEvent& event)
 
 void Timeline::updateSize()
 {
+	// Update size when new video is loaded
+	m_positions.clear();
 	m_width = m_parentFrame->m_mediaCtrl->Length() / 100;
 	SetMinSize(wxSize(m_width, -1));
 	SetSize(wxSize(m_width, -1));
